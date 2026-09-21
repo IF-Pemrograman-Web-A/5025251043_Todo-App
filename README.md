@@ -12,6 +12,14 @@ Todo App sederhana untuk mencatat dan mengatur tugas sehari-hari. Project ini di
 2. Dark Mode
     ![Tampilan Dark Mode](assets/dark-mode.png)
     ![Tampilan Dark Mode](assets/dark-mode2.png)
+### Di Handphone
+1. Light Mode<br>
+    <img src="assets/light-hp1.jpeg" alt="light mode hp1" width="300"><br>
+    <img src="assets/light-hp2.jpeg" alt="light mode hp2" width="300">
+2. Dark Mode<br>
+    <img src="assets/dark-hp1.jpeg" alt="dark mode hp1" width="300"><br>
+    <img src="assets/dark-hp2.jpeg" alt="dark mode hp2" width="300">
+
 
 ## Event Handler
 1. Switch dark mode - light mode <br>
