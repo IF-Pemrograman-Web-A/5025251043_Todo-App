@@ -2,12 +2,41 @@
     box-sizing: border-box;
 }
 
+[hidden]{
+    display: none !important;
+}
+
 body{
     margin: 0;
     font-family: Arial, sans-serif;
     background-color: #eef4ff;
     color: #1e293b;
     transition: background-color 0.2s, color 0.2s;
+}
+
+:focus-visible{
+    outline: 3px solid #f59e0b;
+    outline-offset: 2px;
+}
+
+[tabindex="-1"]:focus{
+    outline: none;
+}
+
+.skip-link{
+    position: absolute;
+    left: -999px;
+    top: 0;
+    padding: 10px 15px;
+    background-color: white;
+    color: #1d4ed8;
+    font-weight: bold;
+    z-index: 10;
+}
+
+.skip-link:focus{
+    left: 10px;
+    top: 10px;
 }
 
 header{
@@ -112,12 +141,17 @@ main{
 
 .todo-item.completed h3{
     text-decoration: line-through;
-    color: #94a3b8;
+    color: #64748b;
 }
 
 .todo-item.completed{
     background-color: #f1f5f9;
     border-color: #cbd5e1;
+}
+
+.empty-list{
+    margin: 0;
+    color: #64748b;
 }
 
 .todo-detail{
@@ -142,12 +176,21 @@ main{
     line-height: 1.6;
 }
 
+.detail-image{
+    display: block;
+    max-width: 100%;
+    max-height: 300px;
+    margin-bottom: 15px;
+    border-radius: 10px;
+    border: 1px solid #dbe7ff;
+}
+
 .empty-detail{
     height: 230px;
     display: flex;
     align-items: center;
     justify-content: center;
-    color: #94a3b8;
+    color: #64748b;
 }
 
 .due-date{
@@ -186,6 +229,7 @@ main{
 
 .todo-detail input[type="text"],
 .todo-detail input[type="date"],
+.todo-detail input[type="datetime-local"],
 .todo-detail textarea{
     width: 100%;
     padding: 12px;
@@ -222,6 +266,8 @@ label{
 
 form input[type="text"],
 form input[type="date"],
+form input[type="datetime-local"],
+form input[type="file"],
 form textarea{
     width: 100%;
     padding: 12px;
@@ -246,6 +292,27 @@ textarea{
     resize: vertical;
 }
 
+#camera-preview,
+#image-preview{
+    display: block;
+    max-width: 100%;
+    max-height: 300px;
+    border-radius: 10px;
+    border: 1px solid #dbe7ff;
+}
+
+.error-message{
+    margin: 0;
+    color: #b91c1c;
+    font-weight: bold;
+}
+
+.status-message{
+    margin: 0;
+    color: #15803d;
+    font-weight: bold;
+}
+
 button{
     width: 100%;
     margin-top: 8px;
@@ -262,6 +329,16 @@ button{
 
 button:hover{
     background-color: #1d4ed8;
+}
+
+.secondary-button{
+    margin-top: 0;
+    background-color: #dbeafe;
+    color: #1e3a8a;
+}
+
+.secondary-button:hover{
+    background-color: #bfdbfe;
 }
 
 footer{
@@ -335,9 +412,12 @@ body.dark-mode label{
 
 body.dark-mode form input[type="text"],
 body.dark-mode form input[type="date"],
+body.dark-mode form input[type="datetime-local"],
+body.dark-mode form input[type="file"],
 body.dark-mode form textarea,
 body.dark-mode .todo-detail input[type="text"],
 body.dark-mode .todo-detail input[type="date"],
+body.dark-mode .todo-detail input[type="datetime-local"],
 body.dark-mode .todo-detail textarea{
     background-color: #0f172a;
     color: #e2e8f0;
@@ -348,6 +428,28 @@ body.dark-mode .due-date,
 body.dark-mode .status{
     background-color: #1e3a8a;
     color: #bfdbfe;
+}
+
+body.dark-mode .empty-detail,
+body.dark-mode .empty-list{
+    color: #94a3b8;
+}
+
+body.dark-mode .error-message{
+    color: #fca5a5;
+}
+
+body.dark-mode .status-message{
+    color: #86efac;
+}
+
+body.dark-mode .secondary-button{
+    background-color: #334155;
+    color: #e2e8f0;
+}
+
+body.dark-mode .secondary-button:hover{
+    background-color: #475569;
 }
 
 @media(max-width: 768px){
@@ -367,5 +469,16 @@ body.dark-mode .status{
 
     header{
         padding: 20px;
+    }
+}
+
+@media (prefers-reduced-motion: reduce){
+
+    *{
+        transition: none !important;
+    }
+
+    .todo-item:hover{
+        transform: none;
     }
 }

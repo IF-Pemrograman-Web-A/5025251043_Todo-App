@@ -4,35 +4,55 @@ const todoForm = document.querySelector("#todo-form");
 const titleInput = document.querySelector("#title");
 const descriptionInput = document.querySelector("#description");
 const dueDateInput = document.querySelector("#due-date");
+const notifyTimeInput = document.querySelector("#notify-time");
+const imageInput = document.querySelector("#image-input");
+const openCameraButton = document.querySelector("#open-camera");
+const takePhotoButton = document.querySelector("#take-photo");
+const cameraPreview = document.querySelector("#camera-preview");
+const imagePreview = document.querySelector("#image-preview");
+const photoCanvas = document.querySelector("#photo-canvas");
+const formError = document.querySelector("#form-error");
+const formStatus = document.querySelector("#form-status");
+const listHeading = document.querySelector("#list-heading");
 const themeToggle = document.querySelector("#theme-toggle");
 
-let todos = [
-    {
-        title: "Belajar HTML",
-        description: "Mempelajari struktur dasar HTML.",
-        dueDate: "2026-09-21",
-        completed: false
-    },
+let db;
 
-    {
-        title: "Belajar CSS",
-        description: "Membuat tampilan website dengan CSS.",
-        dueDate: "2026-09-22",
-        completed: false
-    },
-
-    {
-        title: "Mengerjakan Tugas",
-        description: "Menyelesaikan tugas Todo List.",
-        dueDate: "2026-09-23",
-        completed: false
-    }
-];
+let todos = [];
 
 let selectedTodo = null;
 
+let imageBlob = null;
+
+let stream = null;
+
+let previewUrl = null;
+
+let detailImageUrl = null;
+
+let swReg = null;
+
+function escapeHTML(text){
+    return String(text)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+}
+
+function formatNotifyTime(value){
+    return new Date(value).toLocaleString("id-ID");
+}
+
 function addTodoEvent(todo, todoItem){
     const checkbox = todoItem.querySelector("input[type='checkbox']");
+    const content = todoItem.querySelector(".todo-content");
+
+    function selectTodo(){
+        selectedTodo = todo;
+        showTodoDetail(todo, true);
+    }
 
     todoItem.addEventListener(
         "click",
@@ -40,8 +60,17 @@ function addTodoEvent(todo, todoItem){
             if (event.target.type === "checkbox")
                 return;
 
-            selectedTodo = todo;
-            showTodoDetail(todo);
+            selectTodo();
+        }
+    );
+
+    content.addEventListener(
+        "keydown",
+        function(event){
+            if (event.key === "Enter" || event.key === " "){
+                event.preventDefault();
+                selectTodo();
+            }
         }
     );
 
@@ -51,15 +80,16 @@ function addTodoEvent(todo, todoItem){
             event.stopPropagation();
 
             todo.completed = checkbox.checked;
-            renderTodos();
+            saveTodo(todo);
+            renderTodos(todo);
 
             if (selectedTodo === todo)
-                showTodoDetail(todo);
+                showTodoDetail(todo, false);
         }
     );
 }
 
-function showTodoDetail(todo){
+function showTodoDetail(todo, moveFocus){
     let status;
     if (todo.completed)
         status = "Completed";
@@ -71,12 +101,28 @@ function showTodoDetail(todo){
     if (todo.dueDate)
         dueDate = todo.dueDate;
 
+    let notifyTime = "";
+
+    if (todo.notifyTime)
+        notifyTime = `<p class="notify-time">Reminder: ${escapeHTML(formatNotifyTime(todo.notifyTime))}</p>`;
+
+    let image = "";
+
+    if (todo.image)
+        image = `<img
+            id="detail-image"
+            class="detail-image"
+            alt="Gambar untuk todo: ${escapeHTML(todo.title)}"
+        >`;
+
     todoDetail.innerHTML = `
         <h2>Todo Detail</h2>
 
-        <span class="due-date">Due: ${dueDate}</span>
-        <h3>${todo.title}</h3>
-        <p>${todo.description}</p>
+        <span class="due-date">Due: ${escapeHTML(dueDate)}</span>
+        <h3 id="detail-title" tabindex="-1">${escapeHTML(todo.title)}</h3>
+        <p>${escapeHTML(todo.description)}</p>
+        ${notifyTime}
+        ${image}
         <p class="status">Status: ${status}</p>
 
         <div class="detail-buttons">
@@ -95,6 +141,19 @@ function showTodoDetail(todo){
             </button>
         </div>
     `;
+
+    if (detailImageUrl){
+        URL.revokeObjectURL(detailImageUrl);
+        detailImageUrl = null;
+    }
+
+    if (todo.image){
+        detailImageUrl = URL.createObjectURL(todo.image);
+        document.querySelector("#detail-image").src = detailImageUrl;
+    }
+
+    if (moveFocus)
+        document.querySelector("#detail-title").focus();
 
     document
         .querySelector("#edit-button")
@@ -122,22 +181,37 @@ function editTodo(todo) {
         <input
             type="text"
             id="edit-title"
-            value="${todo.title}"
+            value="${escapeHTML(todo.title)}"
+            required
+            aria-required="true"
+            aria-describedby="edit-error"
         >
 
         <label for="edit-description">Description</label>
         <textarea
             id="edit-description"
-            >${todo.description}
-        </textarea>
+            required
+            aria-required="true"
+            aria-describedby="edit-error"
+        >${escapeHTML(todo.description)}</textarea>
 
         <label for="edit-due-date">Due Date</label>
 
         <input
             type="date"
             id="edit-due-date"
-            value="${todo.dueDate}"
+            value="${escapeHTML(todo.dueDate || "")}"
         >
+
+        <label for="edit-notify-time">Notification Time</label>
+
+        <input
+            type="datetime-local"
+            id="edit-notify-time"
+            value="${escapeHTML(todo.notifyTime || "")}"
+        >
+
+        <p id="edit-error" class="error-message" role="alert"></p>
 
         <div class="detail-buttons">
             <button
@@ -159,23 +233,42 @@ function editTodo(todo) {
     const editTitle = document.querySelector("#edit-title");
     const editDescription = document.querySelector("#edit-description");
     const editDueDate = document.querySelector("#edit-due-date");
+    const editNotifyTime = document.querySelector("#edit-notify-time");
+    const editError = document.querySelector("#edit-error");
+
+    editTitle.focus();
 
     document
         .querySelector("#save-button")
         .addEventListener(
             "click",
             function(){
-                if(editTitle.value === "" || editDescription.value === ""){
-                    alert("Title dan Description harus diisi.");
+                if(editTitle.value.trim() === "" || editDescription.value.trim() === ""){
+                    editError.textContent = "Title dan Description harus diisi.";
+
+                    if(editTitle.value.trim() === "")
+                        editTitle.focus();
+                    else
+                        editDescription.focus();
+
                     return;
                 }
 
-                todo.title = editTitle.value;
-                todo.description = editDescription.value;
-                todo.dueDate = editDueDate.value;
+                if(editNotifyTime.value !== todo.notifyTime){
+                    todo.notified = false;
 
+                    if(editNotifyTime.value)
+                        requestNotificationPermission();
+                }
+
+                todo.title = editTitle.value.trim();
+                todo.description = editDescription.value.trim();
+                todo.dueDate = editDueDate.value;
+                todo.notifyTime = editNotifyTime.value;
+
+                saveTodo(todo);
                 renderTodos();
-                showTodoDetail(todo);
+                showTodoDetail(todo, true);
             }
         );
 
@@ -184,12 +277,12 @@ function editTodo(todo) {
         .addEventListener(
             "click",
             function(){
-                showTodoDetail(todo);
+                showTodoDetail(todo, true);
             }
         );
 }
 
-function deleteTodo(todo){
+async function deleteTodo(todo){
     const confirmDelete = confirm("Apakah kamu yakin ingin menghapus todo ini?");
 
     if (!confirmDelete)
@@ -200,9 +293,17 @@ function deleteTodo(todo){
     if (index !== -1)
         todos.splice(index, 1);
 
+    if (todo.id !== undefined)
+        await removeTodo(todo.id);
+
     selectedTodo = null;
 
     renderTodos();
+
+    if (detailImageUrl){
+        URL.revokeObjectURL(detailImageUrl);
+        detailImageUrl = null;
+    }
 
     todoDetail.innerHTML = `
         <h2>Todo Detail</h2>
@@ -210,10 +311,24 @@ function deleteTodo(todo){
             <p>Pilih todo untuk melihat detail.</p>
         </div>
     `;
+
+    const firstTodo = todoContainer.querySelector(".todo-content");
+
+    if (firstTodo)
+        firstTodo.focus();
+    else
+        listHeading.focus();
 }
 
-function renderTodos(){
+function renderTodos(focusTodo){
     todoContainer.innerHTML = "";
+
+    if (todos.length === 0){
+        todoContainer.innerHTML = `
+            <p class="empty-list">Belum ada todo. Tambahkan todo pertamamu.</p>
+        `;
+        return;
+    }
 
     const unfinishedTodos = todos.filter(
         function(todo){
@@ -229,6 +344,8 @@ function renderTodos(){
 
     const sortedTodos = unfinishedTodos.concat(completedTodos);
 
+    let focusTarget = null;
+
     sortedTodos.forEach(
         function(todo){
             const todoItem = document.createElement("div");
@@ -241,11 +358,16 @@ function renderTodos(){
             todoItem.innerHTML = `
                 <input
                     type="checkbox"
+                    aria-label="Tandai selesai: ${escapeHTML(todo.title)}"
                     ${todo.completed ? "checked" : ""}
                 >
 
-                <div class="todo-content">
-                    <h3>${todo.title}</h3>
+                <div
+                    class="todo-content"
+                    role="button"
+                    tabindex="0"
+                >
+                    <h3>${escapeHTML(todo.title)}</h3>
                 </div>
             `;
 
@@ -255,46 +377,328 @@ function renderTodos(){
                 todo,
                 todoItem
             );
+
+            if (todo === focusTodo)
+                focusTarget = todoItem.querySelector("input[type='checkbox']");
         }
     );
+
+    if (focusTarget)
+        focusTarget.focus();
 }
+
+function showPreview(blob){
+    if (previewUrl)
+        URL.revokeObjectURL(previewUrl);
+
+    previewUrl = URL.createObjectURL(blob);
+    imagePreview.src = previewUrl;
+    imagePreview.hidden = false;
+}
+
+function resetImage(){
+    imageBlob = null;
+    imageInput.value = "";
+    imagePreview.hidden = true;
+    imagePreview.removeAttribute("src");
+
+    if (previewUrl){
+        URL.revokeObjectURL(previewUrl);
+        previewUrl = null;
+    }
+
+    stopCamera();
+}
+
+function stopCamera(){
+    if (stream){
+        stream.getTracks().forEach(
+            function(track){
+                track.stop();
+            }
+        );
+        stream = null;
+    }
+
+    cameraPreview.srcObject = null;
+    cameraPreview.hidden = true;
+    takePhotoButton.hidden = true;
+}
+
+openCameraButton.addEventListener(
+    "click",
+    async function(){
+        formError.textContent = "";
+
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+            formError.textContent = "Kamera tidak didukung. Gunakan upload file.";
+            return;
+        }
+
+        try{
+            stream = await navigator.mediaDevices.getUserMedia({ video: true });
+            cameraPreview.srcObject = stream;
+            cameraPreview.hidden = false;
+            takePhotoButton.hidden = false;
+            takePhotoButton.focus();
+        }
+        catch(error){
+            formError.textContent = "Kamera tidak dapat diakses. Gunakan upload file.";
+        }
+    }
+);
+
+takePhotoButton.addEventListener(
+    "click",
+    function(){
+        photoCanvas.width = cameraPreview.videoWidth;
+        photoCanvas.height = cameraPreview.videoHeight;
+        photoCanvas.getContext("2d").drawImage(cameraPreview, 0, 0);
+
+        photoCanvas.toBlob(
+            function(blob){
+                imageBlob = blob;
+                showPreview(blob);
+                formStatus.textContent = "Foto berhasil diambil.";
+            },
+            "image/jpeg",
+            0.8
+        );
+
+        stopCamera();
+        openCameraButton.focus();
+    }
+);
+
+imageInput.addEventListener(
+    "change",
+    function(){
+        imageBlob = imageInput.files[0] || null;
+
+        if (imageBlob)
+            showPreview(imageBlob);
+        else
+            imagePreview.hidden = true;
+    }
+);
 
 todoForm.addEventListener(
     "submit",
-    function(event){
+    async function(event){
         event.preventDefault();
 
-        const title = titleInput.value;
-        const description = descriptionInput.value;
+        const title = titleInput.value.trim();
+        const description = descriptionInput.value.trim();
         const dueDate = dueDateInput.value;
+        const notifyTime = notifyTimeInput.value;
+
+        formStatus.textContent = "";
 
         if(title === "" || description === ""){
-            alert("Title dan Description harus diisi.");
+            formError.textContent = "Title dan Description harus diisi.";
+
+            titleInput.setAttribute("aria-invalid", title === "");
+            descriptionInput.setAttribute("aria-invalid", description === "");
+
+            if(title === "")
+                titleInput.focus();
+            else
+                descriptionInput.focus();
+
             return;
         }
+
+        formError.textContent = "";
+        titleInput.removeAttribute("aria-invalid");
+        descriptionInput.removeAttribute("aria-invalid");
+
+        if(notifyTime)
+            requestNotificationPermission();
 
         const newTodo = {
             title: title,
             description: description,
             dueDate: dueDate,
+            notifyTime: notifyTime,
+            notified: false,
+            image: imageBlob,
             completed: false
         };
 
+        try{
+            await saveTodo(newTodo);
+        }
+        catch(error){
+            formError.textContent = "Todo gagal disimpan. Coba lagi.";
+            return;
+        }
+
         todos.push(newTodo);
         renderTodos();
+
         todoForm.reset();
+        resetImage();
+
+        formStatus.textContent = "Todo berhasil ditambahkan.";
+        titleInput.focus();
     }
 );
+
+function applyTheme(theme){
+    document.body.classList.toggle("dark-mode", theme === "dark");
+
+    if(theme === "dark")
+        themeToggle.textContent = "Light Mode";
+    else
+        themeToggle.textContent = "Dark Mode";
+
+    themeToggle.setAttribute("aria-pressed", theme === "dark");
+}
+
+applyTheme(localStorage.getItem("theme") || "light");
 
 themeToggle.addEventListener(
     "click",
     function(){
-        document.body.classList.toggle("dark-mode");
+        let nextTheme = "dark";
+
         if(document.body.classList.contains("dark-mode"))
-            themeToggle.textContent = "Light Mode";
-        else
-            themeToggle.textContent = "Dark Mode";
+            nextTheme = "light";
+
+        localStorage.setItem("theme", nextTheme);
+        applyTheme(nextTheme);
     }
 );
 
-renderTodos();
+const request = indexedDB.open("TodoAppDB", 1);
+
+request.onupgradeneeded = function (event) {
+    db = event.target.result;
+
+    if(!db.objectStoreNames.contains("todos")){
+        db.createObjectStore("todos", {
+            keyPath: "id",
+            autoIncrement: true
+        });
+    }
+}
+
+request.onsuccess = async function(event){
+    db = event.target.result;
+    console.log("Database berhasil dibuka");
+
+    todos = await getTodos();
+    renderTodos();
+    checkNotifications();
+};
+
+request.onerror = function(){
+    console.error("Gagal membuka database:", request.error);
+    renderTodos();
+};
+
+function saveTodo(todo){
+    return new Promise((resolve, reject) => {
+        const transaction = db.transaction(["todos"], "readwrite");
+        const store = transaction.objectStore("todos");
+        const request = store.put(todo);
+
+        request.onsuccess = function(){
+            todo.id = request.result;
+            resolve(todo);
+        };
+
+        request.onerror = function(){
+            console.error("Gagal menyimpan todo:", request.error);
+            reject(request.error);
+        };
+    });
+}
+
+function removeTodo(id){
+    return new Promise((resolve, reject) => {
+        const transaction = db.transaction(["todos"], "readwrite");
+        const store = transaction.objectStore("todos");
+
+        store.delete(id);
+
+        transaction.oncomplete = function(){
+            resolve();
+        };
+
+        transaction.onerror = function(){
+            console.error("Gagal menghapus todo:", transaction.error);
+            reject(transaction.error);
+        };
+    });
+}
+
+function getTodos(){
+    return new Promise ((resolve, reject) => {
+        const transaction = db.transaction(["todos"], "readonly")
+        const store = transaction.objectStore("todos");
+
+        const request = store.getAll();
+
+        request.onsuccess = function (){
+            resolve(request.result);
+        };
+
+        request.onerror = function(){
+            reject(request.error);
+        };
+
+    });
+}
+
+if ("serviceWorker" in navigator){
+    navigator.serviceWorker
+        .register("sw.js")
+        .then(function(registration){
+            swReg = registration;
+        })
+        .catch(function(error){
+            console.error("Service Worker gagal didaftarkan:", error);
+        });
+}
+
+function requestNotificationPermission(){
+    if ("Notification" in window && Notification.permission === "default")
+        Notification.requestPermission();
+}
+
+function showReminder(todo){
+    const options = {
+        body: todo.title,
+        tag: "todo-" + todo.id
+    };
+
+    if (swReg)
+        swReg.showNotification("Todo Reminder", options);
+    else
+        new Notification("Todo Reminder", options);
+}
+
+function checkNotifications(){
+    if (!("Notification" in window) || Notification.permission !== "granted")
+        return;
+
+    const now = Date.now();
+
+    todos.forEach(
+        function(todo){
+            if (
+                todo.notifyTime &&
+                !todo.notified &&
+                !todo.completed &&
+                new Date(todo.notifyTime).getTime() <= now
+            ){
+                showReminder(todo);
+                todo.notified = true;
+                saveTodo(todo);
+            }
+        }
+    );
+}
+
+setInterval(checkNotifications, 30000);
