@@ -16,7 +16,7 @@ const formStatus = document.querySelector("#form-status");
 const listHeading = document.querySelector("#list-heading");
 const themeToggle = document.querySelector("#theme-toggle");
 
-let db;
+const scope = document.body.dataset.scope;
 
 let todos = [];
 
@@ -27,8 +27,6 @@ let imageBlob = null;
 let stream = null;
 
 let previewUrl = null;
-
-let detailImageUrl = null;
 
 let swReg = null;
 
@@ -110,8 +108,8 @@ function showTodoDetail(todo, moveFocus){
 
     if (todo.image)
         image = `<img
-            id="detail-image"
             class="detail-image"
+            src="uploads/${escapeHTML(todo.image)}"
             alt="Gambar untuk todo: ${escapeHTML(todo.title)}"
         >`;
 
@@ -141,16 +139,6 @@ function showTodoDetail(todo, moveFocus){
             </button>
         </div>
     `;
-
-    if (detailImageUrl){
-        URL.revokeObjectURL(detailImageUrl);
-        detailImageUrl = null;
-    }
-
-    if (todo.image){
-        detailImageUrl = URL.createObjectURL(todo.image);
-        document.querySelector("#detail-image").src = detailImageUrl;
-    }
 
     if (moveFocus)
         document.querySelector("#detail-title").focus();
@@ -299,11 +287,6 @@ async function deleteTodo(todo){
     selectedTodo = null;
 
     renderTodos();
-
-    if (detailImageUrl){
-        URL.revokeObjectURL(detailImageUrl);
-        detailImageUrl = null;
-    }
 
     todoDetail.innerHTML = `
         <h2>Todo Detail</h2>
@@ -521,12 +504,12 @@ todoForm.addEventListener(
             dueDate: dueDate,
             notifyTime: notifyTime,
             notified: false,
-            image: imageBlob,
+            image: null,
             completed: false
         };
 
         try{
-            await saveTodo(newTodo);
+            await saveTodo(newTodo, imageBlob);
         }
         catch(error){
             formError.textContent = "Todo gagal disimpan. Coba lagi.";
@@ -570,85 +553,74 @@ themeToggle.addEventListener(
     }
 );
 
-const request = indexedDB.open("TodoAppDB", 1);
-
-request.onupgradeneeded = function (event) {
-    db = event.target.result;
-
-    if(!db.objectStoreNames.contains("todos")){
-        db.createObjectStore("todos", {
-            keyPath: "id",
-            autoIncrement: true
-        });
+async function init(){
+    try{
+        todos = await getTodos();
     }
-}
+    catch(error){
+        console.error("Gagal memuat todo:", error);
+    }
 
-request.onsuccess = async function(event){
-    db = event.target.result;
-    console.log("Database berhasil dibuka");
-
-    todos = await getTodos();
     renderTodos();
     checkNotifications();
-};
-
-request.onerror = function(){
-    console.error("Gagal membuka database:", request.error);
-    renderTodos();
-};
-
-function saveTodo(todo){
-    return new Promise((resolve, reject) => {
-        const transaction = db.transaction(["todos"], "readwrite");
-        const store = transaction.objectStore("todos");
-        const request = store.put(todo);
-
-        request.onsuccess = function(){
-            todo.id = request.result;
-            resolve(todo);
-        };
-
-        request.onerror = function(){
-            console.error("Gagal menyimpan todo:", request.error);
-            reject(request.error);
-        };
-    });
 }
 
-function removeTodo(id){
-    return new Promise((resolve, reject) => {
-        const transaction = db.transaction(["todos"], "readwrite");
-        const store = transaction.objectStore("todos");
+init();
 
-        store.delete(id);
+async function saveTodo(todo, imageFile){
+    const data = new FormData();
 
-        transaction.oncomplete = function(){
-            resolve();
-        };
+    data.append("id", todo.id || "");
+    data.append("title", todo.title);
+    data.append("description", todo.description);
+    data.append("dueDate", todo.dueDate);
+    data.append("notifyTime", todo.notifyTime);
+    data.append("notified", todo.notified ? 1 : 0);
+    data.append("completed", todo.completed ? 1 : 0);
+    data.append("scope", scope);
 
-        transaction.onerror = function(){
-            console.error("Gagal menghapus todo:", transaction.error);
-            reject(transaction.error);
-        };
+    if (imageFile)
+        data.append("image", imageFile, "photo.jpg");
+
+    const response = await fetch("api.php?action=save", {
+        method: "POST",
+        body: data
     });
+
+    if (!response.ok)
+        throw new Error("Gagal menyimpan todo");
+
+    const saved = await response.json();
+
+    todo.id = saved.id;
+
+    if (saved.image)
+        todo.image = saved.image;
+
+    return todo;
 }
 
-function getTodos(){
-    return new Promise ((resolve, reject) => {
-        const transaction = db.transaction(["todos"], "readonly")
-        const store = transaction.objectStore("todos");
+async function removeTodo(id){
+    const data = new FormData();
 
-        const request = store.getAll();
+    data.append("id", id);
 
-        request.onsuccess = function (){
-            resolve(request.result);
-        };
-
-        request.onerror = function(){
-            reject(request.error);
-        };
-
+    const response = await fetch("api.php?action=delete", {
+        method: "POST",
+        body: data
     });
+
+    if (!response.ok)
+        throw new Error("Gagal menghapus todo");
+}
+
+async function getTodos(){
+    const response = await fetch("api.php?action=list&scope=" + scope);
+
+    if (!response.ok)
+        throw new Error("Gagal memuat todo");
+
+    return response.json();
 }
 
 if ("serviceWorker" in navigator){
