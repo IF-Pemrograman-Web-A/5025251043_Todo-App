@@ -10,3 +10,6 @@
     <td style="text-align: center;">Tri Zuyyina Rohmah</td>
   </tr>
 </table>
+
+# Preview Todo-App
+![preview](assets/image.png)
