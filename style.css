@@ -53,6 +53,13 @@ header h1 {
     margin: 0;
 }
 
+.header-actions{
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+#install-button,
 #theme-toggle{
     width: auto;
     margin: 0;
@@ -542,6 +549,22 @@ body.dark-mode .secondary-button:hover{
     header{
         padding: 20px;
     }
+}
+
+.offline-banner{
+    margin: 0;
+    padding: 10px 20px;
+    text-align: center;
+    font-weight: bold;
+    background-color: #fef3c7;
+    color: #78350f;
+    border-bottom: 2px solid #f59e0b;
+}
+
+body.dark-mode .offline-banner{
+    background-color: #422006;
+    color: #fde68a;
+    border-bottom-color: #b45309;
 }
 
 @media (prefers-reduced-motion: reduce){

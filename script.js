@@ -634,6 +634,63 @@ if ("serviceWorker" in navigator){
         });
 }
 
+/* ---------------------------- PWA: install ---------------------------- */
+
+const installButton = document.querySelector("#install-button");
+const offlineBanner = document.querySelector("#offline-banner");
+
+let deferredInstallPrompt = null;
+
+window.addEventListener(
+    "beforeinstallprompt",
+    function(event){
+        // Stop the mini-infobar and keep the event for our own button
+        event.preventDefault();
+        deferredInstallPrompt = event;
+        installButton.hidden = false;
+    }
+);
+
+installButton.addEventListener(
+    "click",
+    async function(){
+        if (!deferredInstallPrompt)
+            return;
+
+        deferredInstallPrompt.prompt();
+
+        const choice = await deferredInstallPrompt.userChoice;
+
+        // The prompt can only be used once
+        deferredInstallPrompt = null;
+        installButton.hidden = true;
+
+        formStatus.textContent = choice.outcome === "accepted"
+            ? "Aplikasi sedang diinstal."
+            : "Instalasi dibatalkan.";
+    }
+);
+
+window.addEventListener(
+    "appinstalled",
+    function(){
+        deferredInstallPrompt = null;
+        installButton.hidden = true;
+        formStatus.textContent = "Aplikasi berhasil diinstal.";
+    }
+);
+
+/* -------------------------- PWA: online / offline ------------------------- */
+
+function updateOnlineStatus(){
+    offlineBanner.hidden = navigator.onLine;
+}
+
+window.addEventListener("online", updateOnlineStatus);
+window.addEventListener("offline", updateOnlineStatus);
+
+updateOnlineStatus();
+
 function requestNotificationPermission(){
     if ("Notification" in window && Notification.permission === "default")
         Notification.requestPermission();
@@ -667,7 +724,9 @@ function checkNotifications(){
             ){
                 showReminder(todo);
                 todo.notified = true;
-                saveTodo(todo);
+                saveTodo(todo).catch(function(error){
+                    console.error("Gagal menyimpan status notifikasi:", error);
+                });
             }
         }
     );

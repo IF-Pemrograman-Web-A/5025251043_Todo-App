@@ -1,0 +1,32 @@
+{
+  "id": "./index.php?page=personal",
+  "name": "Todo List",
+  "short_name": "Todo",
+  "description": "A todo list app that keeps working offline.",
+  "lang": "id",
+  "dir": "ltr",
+  "start_url": "./index.php?page=personal",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "theme_color": "#2563eb",
+  "background_color": "#eef4ff",
+  "categories": ["productivity"],
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    {
+      "name": "Personal Todos",
+      "url": "./index.php?page=personal",
+      "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "Shared Todos",
+      "url": "./index.php?page=shared",
+      "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    }
+  ]
+}
