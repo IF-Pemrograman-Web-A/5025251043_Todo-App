@@ -70,7 +70,7 @@ Membuka halaman yang belum pernah di-cache saat offline menampilkan `offline.htm
 ![offline fallback](assets/pwa-offline-page.png)
 
 ### 7. Aplikasi ter-install (mode standalone)
-![proses-install](image.png)
+![proses-install](assets/image.png)
 ![installed app](assets/pwa-installed.png)
 
 ## Catatan
