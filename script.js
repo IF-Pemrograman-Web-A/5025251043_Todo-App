@@ -78,7 +78,9 @@ function addTodoEvent(todo, todoItem){
             event.stopPropagation();
 
             todo.completed = checkbox.checked;
-            saveTodo(todo);
+            patchTodo(todo, { completed: todo.completed }).catch(function(error){
+                console.error(error);
+            });
             renderTodos(todo);
 
             if (selectedTodo === todo)
@@ -512,7 +514,7 @@ todoForm.addEventListener(
             await saveTodo(newTodo, imageBlob);
         }
         catch(error){
-            formError.textContent = "Todo gagal disimpan. Coba lagi.";
+            formError.textContent = error.message || "Todo gagal disimpan. Coba lagi.";
             return;
         }
 
@@ -567,10 +569,42 @@ async function init(){
 
 init();
 
-async function saveTodo(todo, imageFile){
-    const data = new FormData();
+const API_URL = "api.php/todos";
+async function apiError(response, fallback){
+    return new Error(fallback);
+}
 
-    data.append("id", todo.id || "");
+async function saveTodo(todo, imageFile){
+    const isUpdate = Boolean(todo.id);
+
+    if (isUpdate){
+        const response = await fetch(API_URL + "/" + encodeURIComponent(todo.id), {
+            method: "PUT",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                title: todo.title,
+                description: todo.description,
+                dueDate: todo.dueDate,
+                notifyTime: todo.notifyTime,
+                notified: todo.notified ? 1 : 0,
+                completed: todo.completed ? 1 : 0
+            })
+        });
+
+        if (!response.ok)
+            throw await apiError(response, "Gagal menyimpan todo");
+
+        const saved = await response.json();
+
+        if (saved.image)
+            todo.image = saved.image;
+
+        return todo;
+    }
+
+    const data = new FormData();
     data.append("title", todo.title);
     data.append("description", todo.description);
     data.append("dueDate", todo.dueDate);
@@ -582,13 +616,13 @@ async function saveTodo(todo, imageFile){
     if (imageFile)
         data.append("image", imageFile, "photo.jpg");
 
-    const response = await fetch("api.php?action=save", {
+    const response = await fetch(API_URL, {
         method: "POST",
         body: data
     });
 
     if (!response.ok)
-        throw new Error("Gagal menyimpan todo");
+        throw await apiError(response, "Gagal menyimpan todo");
 
     const saved = await response.json();
 
@@ -600,25 +634,36 @@ async function saveTodo(todo, imageFile){
     return todo;
 }
 
-async function removeTodo(id){
-    const data = new FormData();
-
-    data.append("id", id);
-
-    const response = await fetch("api.php?action=delete", {
-        method: "POST",
-        body: data
+async function patchTodo(todo, changes){
+    const response = await fetch(API_URL + "/" + encodeURIComponent(todo.id), {
+        method: "PATCH",
+        headers: {
+                "Content-Type": "application/json"
+            },
+        body: JSON.stringify(changes)
     });
 
     if (!response.ok)
-        throw new Error("Gagal menghapus todo");
+        throw await apiError(response, "Gagal memperbarui todo");
+
+    return response.json();
+}
+
+async function removeTodo(id){
+    const response = await fetch(API_URL + "/" + encodeURIComponent(id), {
+        method: "DELETE",
+    });
+
+    if (!response.ok)
+        throw await apiError(response, "Gagal menghapus todo");
 }
 
 async function getTodos(){
-    const response = await fetch("api.php?action=list&scope=" + scope);
+    const response = await fetch(API_URL + "?scope=" + encodeURIComponent(scope), {
+    });
 
     if (!response.ok)
-        throw new Error("Gagal memuat todo");
+        throw await apiError(response, "Gagal memuat todo");
 
     return response.json();
 }
@@ -634,8 +679,6 @@ if ("serviceWorker" in navigator){
         });
 }
 
-/* ---------------------------- PWA: install ---------------------------- */
-
 const installButton = document.querySelector("#install-button");
 const offlineBanner = document.querySelector("#offline-banner");
 
@@ -644,7 +687,6 @@ let deferredInstallPrompt = null;
 window.addEventListener(
     "beforeinstallprompt",
     function(event){
-        // Stop the mini-infobar and keep the event for our own button
         event.preventDefault();
         deferredInstallPrompt = event;
         installButton.hidden = false;
@@ -661,7 +703,6 @@ installButton.addEventListener(
 
         const choice = await deferredInstallPrompt.userChoice;
 
-        // The prompt can only be used once
         deferredInstallPrompt = null;
         installButton.hidden = true;
 
@@ -679,8 +720,6 @@ window.addEventListener(
         formStatus.textContent = "Aplikasi berhasil diinstal.";
     }
 );
-
-/* -------------------------- PWA: online / offline ------------------------- */
 
 function updateOnlineStatus(){
     offlineBanner.hidden = navigator.onLine;
@@ -724,7 +763,7 @@ function checkNotifications(){
             ){
                 showReminder(todo);
                 todo.notified = true;
-                saveTodo(todo).catch(function(error){
+                patchTodo(todo, { notified: true }).catch(function(error){
                     console.error("Gagal menyimpan status notifikasi:", error);
                 });
             }

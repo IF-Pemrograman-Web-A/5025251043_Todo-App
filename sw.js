@@ -1,18 +1,4 @@
-/* ------------------------------------------------------------------
- * Todo App Service Worker
- *
- * Caching strategy per resource:
- *   1. App shell (index.php?page=..., offline.html, style.css, script.js,
- *      manifest, icons)   -> PRECACHED on install
- *   2. Page navigations   -> network-first, fall back to cached shell,
- *                            then to offline.html
- *   3. CSS / JS / icons   -> stale-while-revalidate
- *   4. api.php?action=list -> network-first, fall back to last cached list
- *   5. uploads/ images    -> cache-first (uploaded files never change)
- *   6. POST / other       -> not handled (always goes to the network)
- * ------------------------------------------------------------------ */
-
-const VERSION = "v3";
+const VERSION = "v5";
 const SHELL_CACHE = "todo-shell-" + VERSION;
 const DATA_CACHE = "todo-data-" + VERSION;
 const IMAGE_CACHE = "todo-images-" + VERSION;
@@ -45,8 +31,6 @@ function abs(path){
     return new URL(path, SCOPE).href;
 }
 
-/* ------------------------------ install ----------------------------- */
-
 self.addEventListener(
     "install",
     function(event){
@@ -54,8 +38,6 @@ self.addEventListener(
             caches
                 .open(SHELL_CACHE)
                 .then(function(cache){
-                    // cache: "reload" skips the browser HTTP cache so the
-                    // precache never stores a stale copy.
                     return cache.addAll(
                         PRECACHE.map(function(path){
                             return new Request(abs(path), { cache: "reload" });
@@ -68,8 +50,6 @@ self.addEventListener(
         );
     }
 );
-
-/* ----------------------------- activate ----------------------------- */
 
 self.addEventListener(
     "activate",
@@ -95,8 +75,6 @@ self.addEventListener(
     }
 );
 
-/* ------------------------------ helpers ----------------------------- */
-
 function fetchWithTimeout(request, ms){
     const controller = new AbortController();
     const timer = setTimeout(function(){
@@ -108,8 +86,6 @@ function fetchWithTimeout(request, ms){
     });
 }
 
-// Maps any URL that renders the app (/, /index.php, /index.php?page=shared)
-// to one of the two precached shell URLs.
 function shellKey(url){
     const isAppPage =
         url.pathname.endsWith("/index.php") ||
@@ -123,7 +99,7 @@ function shellKey(url){
 
 function apiKey(url){
     const scope = url.searchParams.get("scope") === "shared" ? "shared" : "personal";
-    return abs("api.php?action=list&scope=" + scope);
+    return abs("api.php/todos?scope=" + scope);
 }
 
 function jsonError(message){
@@ -141,9 +117,6 @@ async function trimCache(cacheName, maxItems){
         await cache.delete(keys[i]);
 }
 
-/* --------------------------- strategies ----------------------------- */
-
-// Page navigations: network-first -> cached shell -> offline page
 async function handleNavigation(request){
     const url = new URL(request.url);
     const key = shellKey(url);
@@ -164,7 +137,6 @@ async function handleNavigation(request){
     }
 }
 
-// Static shell assets: serve the cached copy immediately, refresh in background
 async function staleWhileRevalidate(request){
     const cache = await caches.open(SHELL_CACHE);
     const cached = await cache.match(request);
@@ -186,7 +158,6 @@ async function staleWhileRevalidate(request){
     return (await network) || Response.error();
 }
 
-// Todo list API: network-first, last known list when offline
 async function handleApiList(request){
     const url = new URL(request.url);
     const key = apiKey(url);
@@ -207,7 +178,6 @@ async function handleApiList(request){
     }
 }
 
-// Uploaded images never change (random file names): cache-first
 async function cacheFirst(request, cacheName){
     const cache = await caches.open(cacheName);
     const cached = await cache.match(request);
@@ -230,8 +200,6 @@ async function cacheFirst(request, cacheName){
     }
 }
 
-/* ------------------------------- fetch ------------------------------ */
-
 self.addEventListener(
     "fetch",
     function(event){
@@ -250,12 +218,13 @@ self.addEventListener(
             return;
         }
 
-        if (url.pathname.endsWith("/api.php")){
-            if (url.searchParams.get("action") === "list")
-                event.respondWith(handleApiList(request));
-
+        if (url.pathname.endsWith("/api.php/todos")){
+            event.respondWith(handleApiList(request));
             return;
         }
+
+        if (url.pathname.indexOf("/api.php") !== -1)
+            return;
 
         if (url.pathname.indexOf("/uploads/") !== -1){
             event.respondWith(cacheFirst(request, IMAGE_CACHE));
@@ -270,8 +239,6 @@ self.addEventListener(
             event.respondWith(staleWhileRevalidate(request));
     }
 );
-
-/* ------------------------- messages / notifications ------------------ */
 
 self.addEventListener(
     "message",
