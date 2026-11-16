@@ -570,8 +570,31 @@ async function init(){
 init();
 
 const API_URL = "api.php/todos";
+
+const apiKey = document.querySelector("meta[name='api-key']").content;
+
+function apiHeaders(extra){
+    return Object.assign({ "X-API-Key": apiKey }, extra || {});
+}
+
 async function apiError(response, fallback){
-    return new Error(fallback);
+    let message = fallback;
+
+    try{
+        const data = await response.json();
+
+        if (data.details)
+            message = Object.keys(data.details).map(function(key){
+                return key + ": " + data.details[key];
+            }).join(" ");
+        else if (data.error)
+            message = data.error;
+    }
+    catch(error){
+        message = fallback;
+    }
+
+    return new Error(message);
 }
 
 async function saveTodo(todo, imageFile){
@@ -580,9 +603,7 @@ async function saveTodo(todo, imageFile){
     if (isUpdate){
         const response = await fetch(API_URL + "/" + encodeURIComponent(todo.id), {
             method: "PUT",
-            headers: {
-                "Content-Type": "application/json"
-            },
+            headers: apiHeaders({ "Content-Type": "application/json" }),
             body: JSON.stringify({
                 title: todo.title,
                 description: todo.description,
@@ -618,6 +639,7 @@ async function saveTodo(todo, imageFile){
 
     const response = await fetch(API_URL, {
         method: "POST",
+        headers: apiHeaders(),
         body: data
     });
 
@@ -637,9 +659,7 @@ async function saveTodo(todo, imageFile){
 async function patchTodo(todo, changes){
     const response = await fetch(API_URL + "/" + encodeURIComponent(todo.id), {
         method: "PATCH",
-        headers: {
-                "Content-Type": "application/json"
-            },
+        headers: apiHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify(changes)
     });
 
@@ -652,6 +672,7 @@ async function patchTodo(todo, changes){
 async function removeTodo(id){
     const response = await fetch(API_URL + "/" + encodeURIComponent(id), {
         method: "DELETE",
+        headers: apiHeaders(),
     });
 
     if (!response.ok)
@@ -660,6 +681,7 @@ async function removeTodo(id){
 
 async function getTodos(){
     const response = await fetch(API_URL + "?scope=" + encodeURIComponent(scope), {
+        headers: apiHeaders(),
     });
 
     if (!response.ok)

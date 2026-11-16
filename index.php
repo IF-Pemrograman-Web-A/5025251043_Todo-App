@@ -1,4 +1,5 @@
 <?php
+require "auth.php";
 $page = ($_GET["page"] ?? "") === "shared" ? "shared" : "personal";
 ?>
 <!DOCTYPE html>
@@ -7,6 +8,7 @@ $page = ($_GET["page"] ?? "") === "shared" ? "shared" : "personal";
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="api-key" content="<?= htmlspecialchars(API_KEY, ENT_QUOTES) ?>">
     <title>Todo List</title>
 
     <meta name="theme-color" content="#2563eb">
